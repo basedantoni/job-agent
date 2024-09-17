@@ -4,10 +4,14 @@ import * as cheerio from "cheerio";
 import puppeteer, { Page } from "puppeteer";
 import { Company, Job, JobPost } from "@/types";
 
-/* 
-Selects options from dropdown given a clickable dropdown,
-querySelector for options, and title of option to select
-*/
+/**
+ * Selects options from a dropdown given a clickable dropdown,
+ * querySelector for options, and title of option to select.
+ * @param {Page} page - The Puppeteer Page object.
+ * @param {string} clickableElement - The selector for the clickable dropdown element.
+ * @param {string} selector - The selector for the dropdown options.
+ * @param {string} optionTitle - The title of the option to select.
+ */
 const selectOptions = async (
   page: Page,
   clickableElement: string,
@@ -35,53 +39,55 @@ const selectOptions = async (
   );
 };
 
-export const startScraping = async (url: string) => {
-  const browser = await puppeteer.launch({
-    headless: process.env.USE_HEADLESS_BROWSER === "true",
-    defaultViewport: { width: 1440, height: 900 },
-  });
-
-  const page = await browser.newPage();
-  await page.goto(url);
-
-  // Wait for the content to load
+/**
+ * Handles the login process for YCombinator.
+ * @param {Page} page - The Puppeteer Page object.
+ */
+const loginToYCombinator = async (page: Page) => {
   await page.waitForSelector("#sign-in-card");
-
-  // Use Puppeteer to input username and password
   await page.type("#ycid-input", (process.env.YC_USERNAME as string) || "");
   await page.type("#password-input", (process.env.YC_PASSWORD as string) || "");
-
-  // Submit the form
   await page.click('button[type="submit"]');
-
-  // Wait for navigation after form submission
   await page.waitForNavigation();
+};
 
-  // Filter
+/**
+ * Applies the necessary filters for job search.
+ * @param {Page} page - The Puppeteer Page object.
+ */
+const applyFilters = async (page: Page) => {
   await selectOptions(page, "#role", '[id^="react-select-"]', "Engineering");
-  await selectOptions(
-    page,
-    "#minExperience",
-    '[id^="react-select-"]',
-    "0 - 1 years exp"
-  );
-  await selectOptions(
-    page,
-    "#minExperience",
-    '[id^="react-select-"]',
-    "1 - 3 years exp"
-  );
-  await selectOptions(
-    page,
-    "#minExperience",
-    '[id^="react-select-"]',
-    "3 - 6 years exp"
-  );
+  const experienceLevels = [
+    "0 - 1 years exp",
+    "1 - 3 years exp",
+    "3 - 6 years exp",
+  ];
+  for (const level of experienceLevels) {
+    await selectOptions(page, "#minExperience", '[id^="react-select-"]', level);
+  }
+};
 
-  // Wait for the list to load
+/**
+ * Retrieves the directory items from the page.
+ * @param {Page} page - The Puppeteer Page object.
+ * @returns {Promise<string[]>} An array of HTML strings representing directory items.
+ */
+const getDirectoryItems = async (page: Page) => {
+  return page.evaluate(() => {
+    const directoryList = document.querySelector(".directory-list");
+    if (!directoryList) return [];
+    return Array.from(directoryList.children)
+      .filter((child) => !child.classList.contains("loading"))
+      .map((child) => child.outerHTML);
+  });
+};
+
+/**
+ * Waits for the directory list to load on the page.
+ * @param {Page} page - The Puppeteer Page object.
+ */
+const waitForDirectoryList = async (page: Page) => {
   await page.waitForSelector(".directory-list");
-
-  // Wait for actual directory items to appear
   await page.waitForFunction(() => {
     const directoryList = document.querySelector(".directory-list");
     if (!directoryList) return false;
@@ -91,81 +97,72 @@ export const startScraping = async (url: string) => {
       (children.length === 1 && !children[0].classList.contains("loading"))
     );
   });
+};
 
-  // Create an array of children of the div element with the class 'directory-list'
-  let directoryItems = await page.evaluate(() => {
-    const directoryList = document.querySelector(".directory-list");
-    if (!directoryList) return [];
-    return Array.from(directoryList.children)
-      .filter((child) => !child.classList.contains("loading"))
-      .map((child) => child.outerHTML);
+/**
+ * Parses a single job post item.
+ * @param {string} item - The HTML string of the job post item.
+ * @returns {Promise<JobPost>} A promise that resolves to a JobPost object.
+ */
+const parseJobPost = async (item: string): Promise<JobPost> => {
+  const $ = await cheerio.load(item);
+  const title = $("span.company-name").text().trim();
+  const jobNames = $("div.job-name")
+    .map((_, el) => $(el).text().trim())
+    .get();
+  const jobUrls = $("a.hover\\:underline")
+    .map((_, el) => $(el).attr("href"))
+    .get();
+
+  const jobs: Job[] = jobNames.map((title, index) => ({
+    title,
+    applied: false,
+    url: jobUrls[index] || "",
+  }));
+
+  const company: Company = { title, applied: false };
+  const website = $("a").attr("href") || "";
+  const shortDescription = $(".mt-3.text-gray-700").text().trim();
+
+  return { company, jobs, website, shortDescription };
+};
+
+/**
+ * Starts the scraping process for job posts.
+ * @param {string} url - The URL to scrape job posts from.
+ * @returns {Promise<JobPost[]>} A promise that resolves to an array of JobPost objects.
+ */
+export const startScraping = async (url: string) => {
+  const browser = await puppeteer.launch({
+    headless: process.env.USE_HEADLESS_BROWSER === "true",
+    defaultViewport: { width: 1440, height: 900 },
   });
 
+  const page = await browser.newPage();
+  await page.goto(url);
+
+  await loginToYCombinator(page);
+  await applyFilters(page);
+  await waitForDirectoryList(page);
+
   let jobPosts: JobPost[] = [];
-
   let hasMoreEntries = true;
+
   while (hasMoreEntries) {
+    const directoryItems = await getDirectoryItems(page);
+
     for (const item of directoryItems) {
-      const $ = await cheerio.load(item);
-      // Get Job Title
-      const title = $("span.company-name").text().trim();
-      console.log("title: %s", title);
-
-      // Get Job Name
-      const jobNames = $("div.job-name")
-        .map((_, el) => $(el).text().trim())
-        .get();
-      console.log("Job titles:", jobNames);
-
-      // Get Application URL
-      const jobUrls = $("a.hover\\:underline")
-        .map((_, el) => $(el).attr("href"))
-        .get();
-      console.log("Job URLs:", jobUrls);
-
-      const jobs: Job[] = jobNames.map((title, index) => ({
-        title,
-        applied: false,
-        url: jobUrls[index] || "",
-      }));
-
-      const company: Company = {
-        title,
-        applied: false,
-      };
-
-      const website = $("a").attr("href") || "";
-      const shortDescription = $(".mt-3.text-gray-700").text().trim();
-
-      const jobPost: JobPost = {
-        company,
-        jobs,
-        website,
-        shortDescription,
-      };
-
+      const jobPost = await parseJobPost(item);
       jobPosts.push(jobPost);
     }
 
-    // Scroll to the bottom of the page
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    await new Promise((resolve) => setTimeout(resolve, 2000)); // Wait for potential new content to load
+    await new Promise((resolve) => setTimeout(resolve, 2000));
 
-    // Check if there are more entries
-    const newDirectoryItems = await page.evaluate(() => {
-      const directoryList = document.querySelector(".directory-list");
-      if (!directoryList) return [];
-      return Array.from(directoryList.children)
-        .filter((child) => !child.classList.contains("loading"))
-        .map((child) => child.outerHTML);
-    });
-
-    if (newDirectoryItems.length > directoryItems.length) {
-      directoryItems = newDirectoryItems;
-    } else {
-      hasMoreEntries = false;
-    }
+    const newDirectoryItems = await getDirectoryItems(page);
+    hasMoreEntries = newDirectoryItems.length > directoryItems.length;
   }
 
-  await browser.close();
+  //   await browser.close();
+  return jobPosts;
 };
