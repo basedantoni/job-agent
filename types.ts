@@ -1,22 +1,12 @@
-export type JobPost = {
-  company: Company;
-  website: string;
-  shortDescription: string;
-  tags?: Tag[];
-  jobs: Job[];
-};
+import companies from "@/db/schema/companies";
+import jobs from "@/db/schema/jobs";
+import posts from "@/db/schema/posts";
 
-export type Tag = {
-  title: string;
-};
+export type Company = typeof companies.$inferSelect;
+export type NewCompany = typeof companies.$inferInsert;
 
-export type Company = {
-  title: string;
-  applied: boolean;
-};
+export type Job = typeof jobs.$inferSelect;
+export type NewJob = typeof jobs.$inferInsert;
 
-export type Job = {
-  title: string;
-  applied: boolean;
-  url: string;
-};
+export type Post = typeof posts.$inferSelect;
+export type NewPost = typeof posts.$inferInsert;

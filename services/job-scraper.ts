@@ -2,7 +2,7 @@ import "server-only";
 
 import * as cheerio from "cheerio";
 import puppeteer, { Page } from "puppeteer";
-import { Company, Job, JobPost } from "@/types";
+import { Company, Post, NewJob, NewPost } from "@/types";
 
 /**
  * Selects options from a dropdown given a clickable dropdown,
@@ -102,9 +102,9 @@ const waitForDirectoryList = async (page: Page) => {
 /**
  * Parses a single job post item.
  * @param {string} item - The HTML string of the job post item.
- * @returns {Promise<JobPost>} A promise that resolves to a JobPost object.
+ * @returns {Promise<NewPost>} A promise that resolves to a JobPost object.
  */
-const parseJobPost = async (item: string): Promise<JobPost> => {
+const parseJobPost = async (item: string): Promise<NewPost> => {
   const $ = await cheerio.load(item);
   const title = $("span.company-name").text().trim();
   const jobNames = $("div.job-name")
@@ -114,13 +114,18 @@ const parseJobPost = async (item: string): Promise<JobPost> => {
     .map((_, el) => $(el).attr("href"))
     .get();
 
-  const jobs: Job[] = jobNames.map((title, index) => ({
+  const jobs: NewJob[] = jobNames.map((title, index) => ({
     title,
     applied: false,
     url: jobUrls[index] || "",
   }));
 
-  const company: Company = { title, applied: false };
+  const company: Company = {
+    title,
+    createdAt: null,
+    updatedAt: null,
+    appliedAt: null,
+  };
   const website = $("a").attr("href") || "";
   const shortDescription = $(".mt-3.text-gray-700").text().trim();
 
@@ -130,7 +135,7 @@ const parseJobPost = async (item: string): Promise<JobPost> => {
 /**
  * Starts the scraping process for job posts.
  * @param {string} url - The URL to scrape job posts from.
- * @returns {Promise<JobPost[]>} A promise that resolves to an array of JobPost objects.
+ * @returns {Promise<Post[]>} A promise that resolves to an array of Post objects.
  */
 export const startScraping = async (url: string) => {
   const browser = await puppeteer.launch({
@@ -145,7 +150,7 @@ export const startScraping = async (url: string) => {
   await applyFilters(page);
   await waitForDirectoryList(page);
 
-  let jobPosts: JobPost[] = [];
+  let posts: Post[] = [];
   let hasMoreEntries = true;
 
   while (hasMoreEntries) {
@@ -153,7 +158,7 @@ export const startScraping = async (url: string) => {
 
     for (const item of directoryItems) {
       const jobPost = await parseJobPost(item);
-      jobPosts.push(jobPost);
+      posts.push(jobPost);
     }
 
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
@@ -164,5 +169,5 @@ export const startScraping = async (url: string) => {
   }
 
   //   await browser.close();
-  return jobPosts;
+  return posts;
 };
