@@ -49,3 +49,11 @@ export const jobs = pgTable("jobs", {
   updatedAt: timestamp("updated_at").defaultNow(),
   companyId: text("company_id").references(() => companies.id),
 });
+
+export const applications = pgTable("applications", {
+  id: text("id").primaryKey().notNull(),
+  message: text("message").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  jobId: text("job_id").references(() => jobs.id),
+});

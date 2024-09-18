@@ -49,7 +49,7 @@ const selectOptions = async (
  * Handles the login process for YCombinator.
  * @param {Page} page - The Puppeteer Page object.
  */
-const loginToYCombinator = async (page: Page) => {
+export const loginToYCombinator = async (page: Page) => {
   await page.waitForSelector("#sign-in-card");
   await page.type("#ycid-input", (process.env.YC_USERNAME as string) || "");
   await page.type("#password-input", (process.env.YC_PASSWORD as string) || "");
@@ -114,6 +114,7 @@ const parseJobPost = async (item: string): Promise<void> => {
   const $ = await cheerio.load(item);
 
   // Create Post
+  let post: Post;
   const website = $("a").attr("href") || "";
   const shortDescription = $(".mt-3.text-gray-700").text().trim();
 
@@ -125,11 +126,11 @@ const parseJobPost = async (item: string): Promise<void> => {
   const existingPost = existingPostResponse[0];
 
   if (existingPost) {
-    return;
+    post = existingPost;
+  } else {
+    const postResponse = await createPost({ website, shortDescription });
+    post = JSON.parse(postResponse)[0];
   }
-
-  const postResponse = await createPost({ website, shortDescription });
-  const post: Post = JSON.parse(postResponse)[0];
 
   // Create Company
   const title = $("span.company-name").text().trim();
@@ -140,25 +141,19 @@ const parseJobPost = async (item: string): Promise<void> => {
   const company: Company = JSON.parse(companyResponse)[0];
 
   // Create jobs
-  const jobNames = $("div.job-name")
-    .map((_, el) => $(el).text().trim())
-    .get();
-  const jobUrls = $("a.hover\\:underline")
-    .map((_, el) => $(el).attr("href"))
+  const jobTitlesAndUrls = $("a.hover\\:underline")
+    .map((_, el) => ({
+      title: $(el).text().trim(),
+      url: $(el).attr("href"),
+    }))
     .get();
 
-  jobNames.map(async (title, index) => {
-    const jobResponse = await createJob({
+  jobTitlesAndUrls.map(async ({ title, url = "" }) => {
+    await createJob({
       title,
-      url: jobUrls[index],
+      url,
       companyId: company.id,
     });
-
-    return {
-      title,
-      applied: false,
-      url: jobUrls[index] || "",
-    };
   });
 };
 
@@ -201,6 +196,6 @@ export const startScraping = async (url: string) => {
     hasMoreEntries = newDirectoryItems.length > directoryItems.length;
   }
 
-  //   await browser.close();
+  await browser.close();
   return posts;
 };

@@ -36,7 +36,7 @@ export const index = async (): Promise<string> => {
 
 export const update = async (
   id: string,
-  params: Omit<Company, "id" | "postId">
+  params: Partial<Omit<Company, "id" | "title" | "createdAt" | "postId">>
 ): Promise<string> => {
   const res = await db
     .update(companies)

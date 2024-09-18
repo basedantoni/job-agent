@@ -10,6 +10,7 @@ interface ENV {
   DB_USER: string | undefined;
   DB_PASSWORD: string | undefined;
   DB_NAME: string | undefined;
+  OPENAI_API_KEY: string | undefined;
 }
 
 interface Config {
@@ -18,6 +19,7 @@ interface Config {
   DB_USER: string;
   DB_PASSWORD: string;
   DB_NAME: string;
+  OPENAI_API_KEY: string;
 }
 
 // Loading process.env as ENV interface
@@ -28,6 +30,7 @@ const getConfig = (): ENV => {
     DB_USER: process.env.DB_USER,
     DB_PASSWORD: process.env.DB_PASSWORD,
     DB_NAME: process.env.DB_NAME,
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
   };
 };
 

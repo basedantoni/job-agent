@@ -1,5 +1,6 @@
 "use server";
 
+import { startJobApplication } from "@/services/job-application-spider";
 import { startScraping } from "@/services/job-scraper";
 
 export const scrapeJobs = (formData: FormData) => {
@@ -9,4 +10,8 @@ export const scrapeJobs = (formData: FormData) => {
   }
 
   startScraping(entryUrl);
+};
+
+export const applyToJobs = (jobs: any[]) => {
+  startJobApplication(jobs);
 };

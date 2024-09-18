@@ -13,6 +13,6 @@ export default defineConfig({
     table: "migrations",
     schema: "public",
   },
-  // verbose: true,
+  verbose: true,
   strict: true,
 });

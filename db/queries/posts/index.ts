@@ -53,7 +53,7 @@ export const index = async (): Promise<string> => {
 
 export const update = async (
   id: string,
-  params: Omit<Post, "id">
+  params: Partial<Omit<Post, "id">>
 ): Promise<string> => {
   const res = await db
     .update(posts)
