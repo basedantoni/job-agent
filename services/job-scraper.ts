@@ -2,7 +2,13 @@ import "server-only";
 
 import * as cheerio from "cheerio";
 import puppeteer, { Page } from "puppeteer";
-import { Company, Post, NewJob, NewPost } from "@/types";
+import { Company, Post } from "@/types";
+import { create as createPost } from "@/db/queries/posts";
+import { create as createCompany } from "@/db/queries/companies";
+import { create as createJob } from "@/db/queries/jobs";
+import { db } from "@/db";
+import { eq } from "drizzle-orm";
+import { posts } from "@/db/schema";
 
 /**
  * Selects options from a dropdown given a clickable dropdown,
@@ -104,9 +110,36 @@ const waitForDirectoryList = async (page: Page) => {
  * @param {string} item - The HTML string of the job post item.
  * @returns {Promise<NewPost>} A promise that resolves to a JobPost object.
  */
-const parseJobPost = async (item: string): Promise<NewPost> => {
+const parseJobPost = async (item: string): Promise<void> => {
   const $ = await cheerio.load(item);
+
+  // Create Post
+  const website = $("a").attr("href") || "";
+  const shortDescription = $(".mt-3.text-gray-700").text().trim();
+
+  // Skip already parsed posts
+  const existingPostResponse = await db
+    .select()
+    .from(posts)
+    .where(eq(posts.website, website));
+  const existingPost = existingPostResponse[0];
+
+  if (existingPost) {
+    return;
+  }
+
+  const postResponse = await createPost({ website, shortDescription });
+  const post: Post = JSON.parse(postResponse)[0];
+
+  // Create Company
   const title = $("span.company-name").text().trim();
+  const companyResponse = await createCompany({
+    title,
+    postId: post.id,
+  });
+  const company: Company = JSON.parse(companyResponse)[0];
+
+  // Create jobs
   const jobNames = $("div.job-name")
     .map((_, el) => $(el).text().trim())
     .get();
@@ -114,22 +147,19 @@ const parseJobPost = async (item: string): Promise<NewPost> => {
     .map((_, el) => $(el).attr("href"))
     .get();
 
-  const jobs: NewJob[] = jobNames.map((title, index) => ({
-    title,
-    applied: false,
-    url: jobUrls[index] || "",
-  }));
+  jobNames.map(async (title, index) => {
+    const jobResponse = await createJob({
+      title,
+      url: jobUrls[index],
+      companyId: company.id,
+    });
 
-  const company: Company = {
-    title,
-    createdAt: null,
-    updatedAt: null,
-    appliedAt: null,
-  };
-  const website = $("a").attr("href") || "";
-  const shortDescription = $(".mt-3.text-gray-700").text().trim();
-
-  return { company, jobs, website, shortDescription };
+    return {
+      title,
+      applied: false,
+      url: jobUrls[index] || "",
+    };
+  });
 };
 
 /**
@@ -151,14 +181,17 @@ export const startScraping = async (url: string) => {
   await waitForDirectoryList(page);
 
   let posts: Post[] = [];
+  let processedItems = new Set<string>();
   let hasMoreEntries = true;
 
   while (hasMoreEntries) {
     const directoryItems = await getDirectoryItems(page);
 
     for (const item of directoryItems) {
-      const jobPost = await parseJobPost(item);
-      posts.push(jobPost);
+      if (!processedItems.has(item)) {
+        await parseJobPost(item);
+        processedItems.add(item);
+      }
     }
 
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));

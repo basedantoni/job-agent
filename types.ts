@@ -1,6 +1,6 @@
-import companies from "@/db/schema/companies";
-import jobs from "@/db/schema/jobs";
-import posts from "@/db/schema/posts";
+import { companies } from "@/db/schema";
+import { jobs } from "@/db/schema";
+import { posts } from "@/db/schema";
 
 export type Company = typeof companies.$inferSelect;
 export type NewCompany = typeof companies.$inferInsert;

@@ -1,29 +1,37 @@
 import {
-  integer,
+  boolean,
   pgTable,
-  serial,
+  text,
   timestamp,
   uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core";
 
-export const posts = pgTable("posts", {
-  id: serial("id").primaryKey(),
-  website: varchar("website", { length: 256 }),
-  shortDescription: varchar("short_description", { length: 256 }),
-  createdAt: timestamp("created_at"),
-  updatedAt: timestamp("updated_at"),
-});
+export const posts = pgTable(
+  "posts",
+  {
+    id: text("id").primaryKey().notNull(),
+    website: varchar("website", { length: 256 }).notNull(),
+    shortDescription: varchar("short_description", { length: 256 }),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (posts) => {
+    return {
+      websiteIndex: uniqueIndex("website_idx").on(posts.website),
+    };
+  }
+);
 
 export const companies = pgTable(
   "companies",
   {
-    id: serial("id").primaryKey(),
+    id: text("id").primaryKey().notNull(),
     title: varchar("title", { length: 256 }).notNull(),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
     appliedAt: timestamp("applied_at"),
-    postId: integer("post_id").references(() => posts.id),
+    postId: text("post_id").references(() => posts.id),
   },
   (companies) => {
     return {
@@ -33,10 +41,11 @@ export const companies = pgTable(
 );
 
 export const jobs = pgTable("jobs", {
-  id: serial("id").primaryKey(),
+  id: text("id").primaryKey().notNull(),
   title: varchar("title", { length: 256 }),
-  url: varchar("url", { length: 256 }),
-  createdAt: timestamp("created_at"),
-  updatedAt: timestamp("updated_at"),
-  companyId: integer("company_id").references(() => companies.id),
+  url: varchar("url", { length: 256 }).notNull(),
+  applied: boolean("applied").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  companyId: text("company_id").references(() => companies.id),
 });

@@ -34,7 +34,7 @@ export function JobListingForm() {
   async function onSubmit(data: z.infer<typeof FormSchema>) {
     const formData = new FormData();
     formData.append("entryUrl", data.entryUrl);
-    await scrapeJobs(formData);
+    scrapeJobs(formData);
   }
 
   return (

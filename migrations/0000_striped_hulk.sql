@@ -1,27 +1,28 @@
 CREATE TABLE IF NOT EXISTS "companies" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" text PRIMARY KEY NOT NULL,
 	"title" varchar(256) NOT NULL,
 	"created_at" timestamp DEFAULT now(),
 	"updated_at" timestamp DEFAULT now(),
 	"applied_at" timestamp,
-	"post_id" integer
+	"post_id" text
 );
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "jobs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" text PRIMARY KEY NOT NULL,
 	"title" varchar(256),
-	"url" varchar(256),
-	"created_at" timestamp,
-	"updated_at" timestamp,
-	"company_id" integer
+	"url" varchar(256) NOT NULL,
+	"applied" boolean DEFAULT false,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now(),
+	"company_id" text
 );
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "posts" (
-	"id" serial PRIMARY KEY NOT NULL,
-	"website" varchar(256),
+	"id" text PRIMARY KEY NOT NULL,
+	"website" varchar(256) NOT NULL,
 	"short_description" varchar(256),
-	"created_at" timestamp,
-	"updated_at" timestamp
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
 DO $$ BEGIN
@@ -36,4 +37,5 @@ EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "title_idx" ON "companies" USING btree ("title");
+CREATE UNIQUE INDEX IF NOT EXISTS "title_idx" ON "companies" USING btree ("title");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "website_idx" ON "posts" USING btree ("website");
